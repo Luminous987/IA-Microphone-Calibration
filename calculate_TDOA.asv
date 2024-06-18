@@ -1,0 +1,52 @@
+clc; clear;
+[all_data, fs] = audioread('.\mic_demo_vvui_ori_valid_channel.wav');
+num_channels = 6; % 总通道数
+num_events = 10; % 每个通道的事件数
+
+% 假设您提供的每个事件的粗略时间节点（单位：秒）
+approx_event_times = [1, 4, 8, 11, 15, 18, 21, 25, 28, 31]; % 示例时间点
+
+% 搜索窗口设置（秒）
+search_window = 2; 
+
+start_sample_list = zeros(num_events, num_channels); % 存储峰值索引
+
+for event_num = 1:num_events
+    approx_sample_idx = round(approx_event_times(event_num) * fs); % 将时间转换为样本索引
+    
+    for ch = 1:num_channels
+        % 获取当前通道数据
+        channel_data = all_data(:, ch);
+        
+        % 计算搜索区间
+        start_idx = max(1, approx_sample_idx - fs * search_window);
+        end_idx = min(length(channel_data), approx_sample_idx + fs * search_window);
+        
+        % 在搜索区间中找到峰值
+        [~, peak_idx] = max(abs(channel_data(start_idx:end_idx)));
+        peak_global_idx = start_idx + peak_idx - 1; % 转换为全局索引
+        
+        % 存储每个通道的峰值索引
+        start_sample_list(event_num, ch) = peak_global_idx;
+    end
+end
+
+delay_mean = zeros(num_events, num_channels-1); % 存储TDOA结果
+ref_channel = 1; % 设定第一个通道为参考通道
+
+for event_num = 1:num_events
+    ref_idx = start_sample_list(event_num, ref_channel); % 取参考通道峰值索引
+
+    for ch = 2:num_channels
+        ch_idx = start_sample_list(event_num, ch); % 取当前通道峰值索引
+        % 计算TDOA，假设您有gccphat或相似函数
+        tau = gccphat(all_data(ref_idx-500:ref_idx+500, ref_channel), all_data(ch_idx-500:ch_idx+500, ch), fs);
+        delay_mean(event_num, ch-1) = tau;
+    end
+end
+
+save('TDOA_results.mat', 'delay_mean');
+%% 验证一下results
+load('TDOA_results.mat')
+
+a=1;

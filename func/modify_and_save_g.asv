@@ -1,0 +1,399 @@
+function modify_and_save_g(input, output_filename)
+    % 载入图文件
+    load(input.graph_file);
+
+%% 对麦克风阵列的位置进行修改，对应g.x_gt的前40行
+    g.M = 8;
+%     R = 0.035;
+    
+
+%     % 正方体顶点的绝对坐标 % 按照0,1,2……的顺序
+%     absolute_mic_positions = [
+%         R * cos(-5*pi/6), R * sin(-5*pi/6), 0; % 0号麦克风的位置        
+%         R * cos(-pi/6), R * sin(-pi/6), 0; % 2
+%         R * cos(5*pi/6), R * sin(5*pi/6), 0 %5
+%         R * cos(-pi/2), R * sin(-pi/2), 0; % 1
+%         R * cos(pi/6), R * sin(pi/6), 0; % 3
+%         R * cos(pi/2), R * sin(pi/2), 0;% 4
+%         
+%     ];
+%     mic_positions = absolute_mic_positions - absolute_mic_positions(1, :);
+
+%     % 麦克风间距
+%     mic_dis = 0.5;
+%         % 正方体顶点的相对坐标
+%     mic_positions = [
+%         0, 0, 0; % 第一个麦克风在原点
+%         mic_dis , 0, 0;
+%         0, mic_dis , 0;
+%         0, 0, mic_dis ;
+%         mic_dis , mic_dis , 0;
+%         mic_dis , 0, mic_dis ;
+%         mic_dis , mic_dis , mic_dis ;
+%         mic_dis , mic_dis , mic_dis 
+%     ];
+
+    % 正方体顶点的相对坐标
+    mic_positions = [
+        0, 0, 0; % 第一个麦克风在原点
+        0.37, 0, 0;
+        0, 0.39, 0;
+        -0.01, -0.01, 0.39;
+        0.36, 0.39, 0;
+        0.38, 0, 0.39;
+        -0.02, 0.39, 0.39;
+        0.38, 0.38, 0.39
+    ];
+    % 设置麦克风的位置信息
+    for i = 1:g.M
+        base_row = (i-1)*5 + 1;
+        g.x_gt(base_row:base_row+2, 1) = mic_positions(i, :)';
+    end
+    % 第一个麦克风的time offset和clock drift均为0
+    g.x_gt(4, 1) = 0; % time offset for the first microphone
+    g.x_gt(5, 1) = 0; % clock drift for the first microphone
+
+    % 设置 time offset 和 clock drift
+    % 假设 time offset 的最大值为 0.1s，clock drift 的最大值为 0.1ms
+    max_time_offset = 0.1 * 0; % in seconds
+    max_clock_drift = 0.1e-3 * 0; % in seconds
+
+    % 生成高斯分布随机数
+    time_offsets = max_time_offset * randn(g.M, 1) * 0;
+    clock_drifts = max_clock_drift * randn(g.M, 1) * 0;
+
+    % 将随机数分配给对应的行
+    for i = 2:g.M
+        g.x_gt((i-1)*5+4, 1) = time_offsets(i);
+        g.x_gt((i-1)*5+5, 1) = clock_drifts(i);
+    end
+% % 下面生成声源位置
+%     x = -0.5;
+%     y = -2;
+%     z = 2;
+%     delta_x = 0.5;
+%     delta_y = 0.5;
+%     delta_z = 0.05;
+%     % 菱形顶点的相对坐标
+%     mic_positions = [
+%         x, y, 0; 
+%         x + delta_x, y, 0;
+%         x + delta_x * 2, y + delta_y, 0;
+%         x + delta_x, y + delta_y, 0;
+%         x, y, 0;
+%         x, y, z;
+%         x + delta_x, y, z;
+%         x + delta_x * 2, y + delta_y, z;
+%         x + delta_x, y + delta_y, z;
+%         x, y, z;
+%         x + delta_x * 2, y + delta_y, z;
+%         x + delta_x * 2, y + delta_y, 0;
+%         x, y, 0;
+% 
+%         x, y + 6 * delta_y, 0 + delta_z; 
+%         x + delta_x, y + 6 * delta_y, 0 + delta_z * 2;
+%         x + delta_x * 2, y + delta_y + 6 * delta_y, 0 + delta_z * 3;
+%         x + delta_x, y + delta_y + 6 * delta_y, 0 + delta_z * 4;
+%         x, y + 6 * delta_y, 0 + delta_z * 5;
+%         x, y + 6 * delta_y, z + delta_z * 6;
+%         x + delta_x, y + 6 * delta_y, z + delta_z * 7;
+%         x + delta_x * 2, y + delta_y + 6 * delta_y, z + delta_z * 8;
+%         x + delta_x, y + delta_y + 6 * delta_y, z + delta_z * 9;
+%         x, y + 6 * delta_y, z + delta_z * 10;
+%         x + delta_x * 2, y + delta_y + 6 * delta_y, z + delta_z * 11;
+%         x + delta_x * 2, y + delta_y + 6 * delta_y, 0 + delta_z * 12;
+%         x, y + 6 * delta_y, 0 + delta_z * 13;
+% 
+%         
+%     ];
+%     time_interval = 0.125;    % 每个采样点的时间间隔，单位秒
+% 
+%     num_samples_per_segment = 10;
+%     num_points = (length(mic_positions)-1) * num_samples_per_segment; % 采样点个数
+% 
+%     % 初始化声源位置存储变量
+%     g.x_gt(5*g.M+1:5*g.M+1+num_points*3-1) = 0; % 乘以3是因为每个时间点有三个坐标值
+%     current_index = 40;
+% 
+%     % 计算每个采样点的位置
+%     for i = 1:(length(mic_positions)-1) %10个点9段
+%         for j = 1:num_samples_per_segment %每段num_samples_per_segment采样点
+%             t = (j - 1) / (num_samples_per_segment-1); % 当前采样点的时间
+%             x_coord = mic_positions(i,1) + t * (mic_positions(i+1,1) - mic_positions(i,1));
+%             y_coord = mic_positions(i,2) + t * (mic_positions(i+1,2) - mic_positions(i,2));
+%             z_coord = mic_positions(i,3) + t * (mic_positions(i+1,3) - mic_positions(i,3));
+%     
+%             % 赋值到g.x_gt
+%             g.x_gt(current_index + 1) = x_coord;
+%             g.x_gt(current_index + 2) = y_coord;
+%             g.x_gt(current_index + 3) = z_coord;
+%     
+%             % 更新索引，为下一个采样点准备
+%             current_index = current_index + 3;
+%         end
+%     end
+% 
+% 
+%     num_samples_per_segment = 20; % 每段原本的总采样点数
+%     num_points = (length(mic_positions)-1) * 6; % 修改后的总采样点数，每段保留10个点
+%     
+%     % 初始化声源位置存储变量
+%     g.x_gt(41:41+num_points*3-1) = 0;
+%     current_index = 40;
+% 
+%     % 计算每个采样点的位置
+%     for i = 1:(length(mic_positions)-1)
+%         % 只在每个线段的开始和结束部分插值5个点
+%         for j = [1:3, num_samples_per_segment-2:num_samples_per_segment]
+%             % 保持插值步长不变，通过调整j的值来选择插值位置
+%             t = (j - 1) / (num_samples_per_segment-1); % 计算当前采样点的时间
+%             
+%             % 根据t计算当前采样点的坐标
+%             x_coord = mic_positions(i,1) + t * (mic_positions(i+1,1) - mic_positions(i,1));
+%             y_coord = mic_positions(i,2) + t * (mic_positions(i+1,2) - mic_positions(i,2));
+%             z_coord = mic_positions(i,3) + t * (mic_positions(i+1,3) - mic_positions(i,3));
+%     
+%             % 赋值到g.x_gt
+%             g.x_gt(current_index + 1) = x_coord;
+%             g.x_gt(current_index + 2) = y_coord;
+%             g.x_gt(current_index + 3) = z_coord;
+%     
+%             % 更新索引，为下一个采样点准备
+%             current_index = current_index + 3;
+%         end
+%     end
+
+
+
+
+%     % 参数设定
+%     r = 2;                    % 螺旋线半径
+%     delta_z = 0.1;           % z轴上的步长
+%     delta_theta = 2 * pi / 10; % 角速度
+% 
+%     time_interval = 0.125;    % 每个采样点的时间间隔，单位秒
+% 
+%     num_points = 120; % 采样点个数
+%     threshold1 = 40;
+%     threshold2 = 80;
+%     threshold3 = 100;
+% 
+% %     total_time = num_points * time_interval;
+%     % 初始化声源位置存储变量
+%     g.x_gt(41:41+num_points*3-1) = 0; % 乘以3是因为每个时间点有三个坐标值
+% 
+%     % 计算每个采样点在螺旋线上的位置
+%     for i = 1:threshold1
+%         t = (i - 1) * time_interval; % 当前采样点的时间
+%         index = 40 + (i - 1) * 3;
+%         g.x_gt(index + 1) = r * cos(delta_theta * i) + 0.5; % x坐标
+%         g.x_gt(index + 2) = r * sin(delta_theta * i) + 0.5; % y坐标
+%         g.x_gt(index + 3) = delta_z * i; % z坐标，从0开始每个间隔上升delta_z
+%     end
+% 
+%     % z周直线运动
+%     for i = (threshold1 + 1):threshold2
+%         % 声源的x和y坐标保持最后一个螺旋线坐标不变
+%         x_pos = r * cos(delta_theta * threshold1) + 0.5;
+%         y_pos = r * sin(delta_theta *threshold1) + 0.5;
+%         
+%         % z坐标逐渐减小
+%         z_pos = delta_z * threshold1 - delta_z * (i - threshold1) * 2;
+%         
+%         index = 40 + (i - 1) * 3;
+%         g.x_gt(index + 1) = x_pos; % x坐标
+%         g.x_gt(index + 2) = y_pos; % y坐标
+%         g.x_gt(index + 3) = z_pos; % z坐标
+%     end
+%        % 沿x移动
+%     for i = (threshold2 + 1):threshold3
+%         x_pos = r * cos(delta_theta * threshold1) + 0.5 + (i -threshold2) * 0.1;
+%         y_pos = r * sin(delta_theta *threshold1) + 0.5;
+%        
+%         z_pos = delta_z * threshold1 - delta_z * (threshold2 - threshold1) * 2;
+%         
+%         index = 40 + (i - 1) * 3;
+%         g.x_gt(index + 1) = x_pos; % x坐标
+%         g.x_gt(index + 2) = y_pos; % y坐标
+%         g.x_gt(index + 3) = z_pos; % z坐标
+%     end
+% 
+%     % 沿y移动
+%     for i = (threshold3 + 1):num_points
+%         x_pos = r * cos(delta_theta * threshold1) + 0.5 + (threshold3 -threshold2) * 0.1;
+%         y_pos = r * sin(delta_theta *threshold1) + 0.5 + (i - threshold3)*0.1;
+%         
+%         z_pos = delta_z * threshold1 - delta_z * (threshold2 - threshold1) * 3;
+%         
+%         index = 40 + (i - 1) * 3;
+%         g.x_gt(index + 1) = x_pos; % x坐标
+%         g.x_gt(index + 2) = y_pos; % y坐标
+%         g.x_gt(index + 3) = z_pos; % z坐标
+%     end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%真实数据
+
+%     num_points = 13;
+%     time_interval = 3.4;
+%     % 先计算绝对位置，再换成对于0号的相对位置
+%     g.x_gt(5*g.M+1:5*g.M+1+num_points*3-1) = 0;
+%     sound_positions = [%71, 59, -2;         
+%         76, 30, -2; %离1号 0.81 离2号 0.46m 应该是1.0x10^-3
+%         79, 14, -2; 
+%         50, 0, 0; 
+%         0, 41, 41; 
+%         40, 40, 20;   
+%         30, 80, -2; 
+%         0, 80, -2;
+%         -40, 40, -2; 
+%         -20, 80, -2;
+%         -30, 80, -2;
+%         -30, 70, -2;
+%         -40, 70, -2;
+%         -40, 60, -2;
+% 
+% %         20, 20, 20;
+% 
+%         ];
+%     sound_positions = sound_positions .* 0.01;
+%     for i = 1: num_points
+%         index = 5 * g.M + (i-1) * 3;
+%         g.x_gt(index + 1) = sound_positions(i,1); % x坐标
+%         g.x_gt(index + 2) = sound_positions(i,2); % y坐标
+%         g.x_gt(index + 3) = sound_positions(i,3); % z坐标
+%     end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%导入真实数据
+%     num_points = 75;
+    addpath('npy-matlab-master/npy-matlab-master/npy-matlab')
+    % 读取.npy文件，使用相对路径
+%     sound_positions = readNPY('data/pose_02.npy');
+    sound_positions = readNPY('data/final_data/pose_4.npy');
+    num_points = size(sound_positions, 1);
+    true_sound_positions = readNPY('data/final_data/pose_true4.npy');
+    
+%     tra = readNPY('data/final_data/traj_1.npy');
+%     % 显示数据
+%     disp(sound_positions);
+    ref_x = -0.20;
+    ref_y = -0.03;
+    ref_z = 0.05;
+    for i = 1: num_points
+        index = 5 * g.M + (i-1) * 3;
+        g.x_gt(index + 1) = true_sound_positions(i,1) + ref_x; % x坐标
+        g.x_gt(index + 2) = true_sound_positions(i,2) + ref_y; % y坐标
+        g.x_gt(index + 3) = true_sound_positions(i,3) + ref_z; % z坐标
+    end
+%% 下面生成TDOA测量量
+    c = 346;              % 声速 (m/s)
+%     TDOA_std_dev_noise = 0.0666e-3; % 噪声的标准偏差,对应文章的R
+    TDOA_std_dev_noise = 2e-4;
+    POSE_std_dev_noise = 0.005 ; %接下来把误差改成与正比deltax
+    
+    % 声源位置存储在g.x_gt的41到280行中，每三个行对应一个(x, y, z)坐标
+    % 计算TDOA测量值并添加到g.edge.measurement中
+
+    
+    for k = 1:num_points
+        % 获取当前声源的位置
+        source_idx = 5 * g.M + (k - 1) * 3;
+        source_pos = g.x_gt(source_idx + 1:source_idx + 3);
+    
+        % 计算第一个麦克风的位置
+        first_mic_pos = g.x_gt(1:3);
+    
+        % 计算声源到第一个麦克风的距离
+        dist_first_mic = norm(source_pos - first_mic_pos);
+    
+        % 初始化TDOAs和POSEs数组
+        TDOAs = zeros(g.M-1, 1);
+        delta_POSEs = zeros(3, 1);
+    
+        % 遍历其余的麦克风，计算TDOA
+        for i = 2:g.M
+%             mic_idx = (i - 1) * 5;
+%             mic_pos = g.x_gt(mic_idx + 1:mic_idx + 3);
+%             dist_mic = norm(source_pos - mic_pos);
+%             
+%             time_offset = g.x_gt(mic_idx + 4);
+%             clock_drift = g.x_gt(mic_idx + 5);
+% 
+%             TDOAs(i - 1) = (dist_mic - dist_first_mic) / c ;
+            
+            % 计算TDOA测量值
+%             TDOAs(i - 1) = (dist_mic - dist_first_mic) / c + time_offset + k * time_interval * clock_drift;
+
+
+            TDOAs(i - 1) = delay_mean(k, i-1);
+        end
+        % 直接将获取的声源位置赋值
+        if k < num_points
+            delta_POSEs = g.x_gt(source_idx + 1 + 3:source_idx + 3 + 3) - g.x_gt(source_idx + 1:source_idx + 3);
+        end
+        % 加入测量噪声
+        TDOAs_noise = TDOA_std_dev_noise * randn(g.M-1, 1);
+        TDOAs = TDOAs + TDOAs_noise * 0;
+        
+        %加入位姿限制，得到位姿的测量
+        POSEs_noise = POSE_std_dev_noise * randn(3, 1) ;
+        delta_POSEs = delta_POSEs + POSEs_noise * 0 ;
+
+        % 计算信息矩阵
+        TDOA_var_noise = TDOA_std_dev_noise^2;    
+        POSE_var_noise = POSE_std_dev_noise^2;    
+        % 信息矩阵是方差倒数的对角矩阵
+        TDOA_information = diag(repmat(1 / TDOA_var_noise, g.M-1, 1));
+        POSE_information = diag(repmat(1 / POSE_var_noise, 3, 1));        
+
+        % 保存TDOA测量值到g.edge的measurement字段
+        g.edges(2 * k - 1).type = 'L';
+        g.edges(2 * k - 1).measurement = TDOAs;
+        g.edges(2 * k - 1).information = TDOA_information;
+        g.edges(2 * k - 1).fromIdx = 1;
+        g.edges(2 * k - 1).toIdx = 5 * g.M + 3 * k - 2;
+        if k < num_points
+            g.edges(2 * k).type = 'P';
+%             g.edges(2 * k).measurement = [0;0;0];
+            g.edges(2 * k).measurement = delta_POSEs;
+            g.edges(2 * k).information = POSE_information;
+            g.edges(2 * k).fromIdx = 5 * g.M + 3 * k - 2;
+            g.edges(2 * k).toIdx = 5 * g.M + 3 * k - 2 + 3;
+        end
+    end
+%     g.edges(1).measurement = [1*10^-3, 1.6667*10^-4, -3.333*10^-4, 0.0013, 4.5833*10^-4, -2.0833*10^-4, 6.667*10^-4];
+%% 给g.x一个初值
+
+    % 初始化gx
+    init_std_dev = 0.2 ;
+    init_std_dev_time_offset = max_time_offset; % in seconds
+    init_std_dev_clock_drift = max_clock_drift; % in seconds
+    
+    % 初始化g.x与g.x_gt的维度相同
+
+
+    for i=2:g.M
+        g.x((i-1)*5+4) = g.x_gt((i-1)*5+4)+init_std_dev_time_offset * randn(1,1);
+        g.x((i-1)*5+5) = g.x_gt((i-1)*5+5)+init_std_dev_clock_drift * randn(1,1);
+    end
+    g.x(1:5) = 0;
+    %% 填充idLookup    
+    % 填充麦克风的idLookup
+    for i = 1:g.M
+        g.idLookup(i).offset = (i - 1) * 5;
+        g.idLookup(i).dimension = 5;
+    end
+    
+    % 填充声源的idLookup
+    for i = 1:num_points
+        g.idLookup(g.M + i).offset = 5 * g.M + (i - 1) * 3 ;
+        g.idLookup(g.M + i).dimension = 3;
+    end
+    g.M_x = 2;
+    g.M_y = 2;
+
+
+    % 保存修改后的结构体
+    save(output_filename, 'g');
+
+end

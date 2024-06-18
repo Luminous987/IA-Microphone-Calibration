@@ -1,0 +1,344 @@
+%% refresh
+clear;
+close all;
+clc;
+rng(0);
+
+
+%误差的协方差矩阵替换信息矩阵
+%计算每个声道之间的差
+%1与4对比，说明信息丰富度；2,3对比，说明直线中间没有价值，为最后的优化提供佐证
+
+% 2个菱形 均匀10个点 0.09-54.5 
+% 2个菱形 扣去中间 剩10个点 0.06 50
+% 2个菱形 扣去中间 剩6个点 0.07 44.6 中间基本没有带来新的信息，信噪比很低，对精度基本没有影响
+% 1个菱形 均匀20个点 0.49-120
+% 1个菱形扣去中间 剩10个点 1.43 338
+% 1个菱形均匀10个点 1.48 350
+
+%下一步的工作
+%1.把数据点变的稠密 x_gt是真值，修改这一项，fig4a是280x1，g.edges应该也要改 完成
+
+%2.实现2016的算法，比较应用算法与否的时间和精度
+
+%3.实物（很多问题，比如在转弯时施加额外控制）
+
+%4.MATLAB模拟声场，实际不是脉冲函数，每次发声是类似高斯？的声强，如何解决稠密时的问题？
+%5.实物解决稠密问题
+%6.还有想做的：自动提取  一个信息的高通滤波？两个或者三个临近批次之间的互信息（信息增益）
+
+%下一步要做的：
+
+%修改仿真图表,做的好看一些，保存pdf图，不要截图
+%商量杆子，麦克风位置架子
+%开始写formula部分
+%过几天读运动捕捉系统手册，准备编写一步到位代码
+
+
+%接着做实验的内容：调成24KHZ，采几组看看效果
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%全批：0.1528   91.7629 0.086s
+
+
+%%%%%%%%%%%%实验三%%%%%%%%%%%%
+%全 65 0.0298    0.1531
+%处理后 49 0.0288    0.1649 39开始
+% 49 0.0203    0.1556 41开始
+%%%%%%%%%%%最终实验%%%%%%%%%%%%%%
+
+%第一组：正则化e-9，协方差*100
+%离线全批：82 0.0136    0.1313
+%在线全批：82 0.0136    0.1313，起点48
+%处理：54 0.0120    0.1241 阈值1，起点48
+
+%第二组 
+%离线全批 75点 0.0163    0.3832
+%在线全批 75点 0.0115    0.1830 起点45
+%处理： 63点 0.0141    0.2435 阈值 1 |  1.5不收 起点45
+
+%第四组 
+%离线全批 70点 0.0132    0.3445
+%在线全批 70点 0.0116    0.1856 起点42
+%处理： 60点 0.0131    0.2652 阈值1 |  48点 0.0179    0.2858 1.5    起点42
+
+%第六组 
+%离线全批 104点 0.0074    0.2025
+%在线全批 104点 0.0073    0.1753 起点64
+%处理： 74点 0.0088    0.1692 阈值1   起点64
+
+%第七组 
+%离线全批 97点 0.0169    0.2165
+%在线全批 97点 0.0155    0.2205 起点60
+%处理： 75点 0.0173    0.2283 阈值1   起点60
+%处理： 63点 0.0152    0.1318 阈值1   起点45
+
+%平均
+%全批处理：总点数 85.6 mic平均RMSE 0.0119m 声源平均RMSE 
+
+%第九组 信息太少不收敛
+%% add path for including some tool functions
+addpath('func');
+
+%% params
+
+% fig4b.graph_file = './data/2_evenness_rhomboid_fig4b.mat';
+% fig4b.graph_file = './data/real_experiment.mat';
+fig4b.graph_file = './data/final_data/final_real_experiment6.mat';
+% fig4b.graph_file = './data/simulation_test.mat';
+
+%% 
+% input.graph_file = './data/fig4b.mat'; 
+input.graph_file = './data/final_data/TDOA_results6.mat'; 
+% output_filename = './data/helix_fig4b.mat';  % 螺旋线
+% output_filename = './data/2_truncation_rhomboid_fig4b.mat'; %菱形
+% output_filename = './data/2_evenness_rhomboid_fig4b_test.mat'; %菱形
+output_filename = './data/final_data/final_real_experiment6.mat';  
+% output_filename = './data/simulation_test.mat';
+%调用函数，传入输入结构体和输出文件名
+modify_and_save_g(input, output_filename);
+
+%% illustrative results in section VI
+disp('==================================================================');
+disp('VI. ILLUSTRATIVE RESULTS');
+disp(' ');
+
+% A. cases when observability is guaranteed/impossible
+disp('==================================================================');
+disp('A. Cases when observability is guaranteed/impossible');
+disp(' ');
+
+
+% Fig.4(b)
+disp('------------------------------------------------------------------');
+disp('Fig.4(b)');
+disp('----------');
+fig4b.eqn.ss_idx = [1,2,3,65,75];%原12345
+fig4b.eqn.o_r = [3, 3, 5];%原335
+fig4b.eqn.o_k = [1, 2, 50];%原123
+% type is one of:
+% 1: full system with both time offset and clock drift, 
+% 2: only time offset, 3: only clock drift, 4: none.
+fig4b.eqn.type = 4; 
+
+% observability_analysis_func(fig4b);
+disp('');
+
+
+% Fig.4(a)
+disp('------------------------------------------------------------------');
+disp('Fig.4(a)');
+disp('----------');
+fig4a.eqn.ss_idx = [1,2,3,4,21];
+fig4a.eqn.o_r = [3, 3, 5];
+fig4a.eqn.o_k = [1, 2, 3];
+% type is one of:
+% 1: full system with both time offset and clock drift, 
+% 2: only time offset, 3: only clock drift, 4: none.
+fig4a.eqn.type = 1; 
+
+% observability_analysis_func(fig4a);
+disp('');
+
+
+
+% Fig.5(a)
+disp('------------------------------------------------------------------');
+disp('Fig.5(a)');
+disp('----------');
+fig5a.eqn.ss_idx = [1,2,3,4,6];
+fig5a.eqn.o_r = [3, 3, 5];
+fig5a.eqn.o_k = [1, 2, 3];
+% type is one of:
+% 1: full system with both time offset and clock drift, 
+% 2: only time offset, 3: only clock drift, 4: none.
+fig5a.eqn.type = 1; 
+
+% observability_analysis_func(fig5a);
+disp('');
+
+% Fig.5(c)
+disp('------------------------------------------------------------------');
+disp('Fig.5(c)');
+disp('----------');
+fig5c.eqn.ss_idx = [9,10,11,12,13];
+fig5c.eqn.o_r = [3, 3, 5];
+fig5c.eqn.o_k = [1, 2, 3];
+% type is one of:
+% 1: full system with both time offset and clock drift, 
+% 2: only time offset, 3: only clock drift, 4: none.
+fig5c.eqn.type = 1; 
+
+% observability_analysis_func(fig5c);
+disp('');
+
+% B. cases with only time offsets or clock drifts
+disp('==================================================================');
+disp('B. Cases with only time offsets or clock drifts');
+disp(' ');
+
+% Fig.5(c) with only time offset
+disp('------------------------------------------------------------------');
+disp('Fig.5(c) with only time offset');
+disp('----------');
+fig5c.eqn.ss_idx = [10,11,12,13];
+fig5c.eqn.o_r = [3, 3, 5];
+fig5c.eqn.o_k = [1, 2, 3];
+% type is one of:
+% 1: full system with both time offset and clock drift, 
+% 2: only time offset, 3: only clock drift, 4: none.
+fig5c.eqn.type = 2; 
+
+% observability_analysis_func(fig5c);
+disp('');
+
+% Fig.5(c) with only clock drift
+disp('------------------------------------------------------------------');
+disp('Fig.5(c) with only clock drift');
+disp('----------');
+fig5c.eqn.ss_idx = [10,11,12,13];
+fig5c.eqn.o_r = [3, 3, 5];
+fig5c.eqn.o_k = [1, 2, 3];
+% type is one of:
+% 1: full system with both time offset and clock drift, 
+% 2: only time offset, 3: only clock drift, 4: none.
+fig5c.eqn.type = 3; 
+
+% observability_analysis_func(fig5c);
+disp('');
+
+% Fig.5(b) with only clock drift
+disp('------------------------------------------------------------------');
+disp('Fig.5(b) with only clock drift');
+disp('----------');
+fig5b.eqn.ss_idx = [9,10,11,12];
+fig5b.eqn.o_r = [3, 3, 5];
+fig5b.eqn.o_k = [1, 2, 3];
+% type is one of:
+% 1: full system with both time offset and clock drift, 
+% 2: only time offset, 3: only clock drift, 4: none.
+fig5b.eqn.type = 3; 
+
+% observability_analysis_func(fig5b);
+disp('');
+
+% C. impact of eigenvalues of FIM on observability and convergence of the system
+disp('==================================================================');
+disp('C. Impact of eigenvalues of FIM on observability and convergence'); 
+disp('of the system');
+disp(' ');
+disp('Check plotting of Fig.6(b) below.');
+disp(' ');
+
+%% experimental results in section VII
+disp('==================================================================');
+disp('VII. EXPERIMENTAL RESULTS');
+disp(' ');
+% 
+% Fig.8(a)
+disp('------------------------------------------------------------------');
+disp('Fig.8(a)');
+disp('----------');
+fig8a.eqn.ss_idx = [1,2,30,50,70];
+fig8a.eqn.o_r = [3, 3, 5];
+fig8a.eqn.o_k = [1, 4, 50];
+% type is one of:
+% 1: full system with both time offset and clock drift, 
+% 2: only time offset, 3: only clock drift, 4: none.
+fig8a.eqn.type = 1; 
+
+% observability_analysis_func(fig8a);
+disp('');
+
+% Fig.8(b)
+disp('------------------------------------------------------------------');
+disp('Fig.8(b)');
+disp('----------');
+disp('This step will take a while (up to 1 min), please be patient ...');
+disp(' ');
+fig8b.eqn.ss_idx = [1,30,50,70, 130];
+fig8b.eqn.o_r = [3, 3, 5];
+fig8b.eqn.o_k = [1, 4, 50];
+% type is one of:
+% 1: full system with both time offset and clock drift, 
+% 2: only time offset, 3: only clock drift, 4: none.
+fig8b.eqn.type = 1; 
+
+% observability_analysis_func(fig8b);
+disp('');
+
+%% figures in Fig.4, Fig.5, Fig.6 and Fig.8
+disp('==================================================================');
+disp('Plotting figures in Fig.4, Fig.6 and Fig.8');
+disp(' ');
+
+% Fig.4(b)
+disp('------------------------------------------------------------------');
+disp('Plot Fig.4(b) in Fig. 2.');
+fig4b.eps = 1e-2;
+fig4b.fig.title = 'Fig.4(b)';
+fig4b.fig.view_a = 30; fig4b.fig.view_e = 15;
+calib_func1(fig4b);
+pause(0.5);
+
+% Fig.4(a)
+disp('------------------------------------------------------------------');
+disp('Plot Fig.4(a) in Fig. 1.');
+fig4a.eps = 1e-2;
+fig4a.fig.title = 'Fig.4(a)';
+fig4a.fig.view_a = 30; fig4a.fig.view_e = 15;
+
+% calib_func(fig4a);
+pause(0.5);
+
+
+% % Fig.6(a)
+% disp('------------------------------------------------------------------');
+% disp('Plot Fig.6(a) in Fig. 3.');
+% fig6a.eps = 1e-2;
+% fig6a.fig.title = 'Fig.6(a)';
+% fig6a.fig.view_a = 30; fig6a.fig.view_e = 15;
+% 
+% calib_func(fig6a);
+% pause(0.5);
+% 
+% % Fig.6(b)
+% disp('------------------------------------------------------------------');
+% disp('Plot Fig.6(b) in Fig. 4.');
+% fig4b.fig.legend = 'cir+ver'; fig6a.fig.legend = 'cir';
+% fim_eigs(fig4b, fig6a); title('Fig.6(b)');
+% pause(0.5);
+% 
+% % Fig.8(b)
+% disp('------------------------------------------------------------------');
+% disp('Plot Fig.8(b) in Fig. 5.');
+% fig8b.eps = 1.5;
+% fig8b.fig.title = 'Fig.8(b)';
+% fig8b.fig.view_a = 61.1418; fig8b.fig.view_e = 47.4000;
+% 
+% calib_func(fig8b);
+% pause(0.5);
+
+%% All done
+disp('==================================================================');
+disp('Finish');
+disp(' ');
+disp('==================================================================');
+%% 
+
+mean_Y = compute_mean_Y(100);
+
+function E_Y = compute_mean_Y(n)
+    p_Y = zeros(1, n+1);
+    for j = 0:n
+        for i = j:n
+            p_Y(j+1) = p_Y(j+1) + (1 / ((n+1) * (i+1)));
+        end
+    end
+
+    E_Y = sum((0:n) .* p_Y);
+    disp('期望为：')
+    disp(E_Y);
+end
+
+% Call the function with n = 100
+

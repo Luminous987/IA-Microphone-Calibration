@@ -1,0 +1,109 @@
+clc; clear;
+[all_data, fs] = audioread('.\real4.wav');
+disp(fs);
+num_channels = 16; % 总通道数
+num_events = 82; % 每个通道的事件数
+% 创建一个新的图形窗口
+figure;
+
+% 遍历所有声道并绘制每个声道的波形
+for ch = 1:8
+    subplot(num_channels, 1, ch); % 为每个声道分配绘图空间
+    plot((1:length(all_data(:, ch)))/fs, all_data(:, ch));
+    xlabel('Time (s)'); % X轴标签
+    ylabel('Amplitude'); % Y轴标签
+    title(['Channel ', num2str(ch)]); % 设置标题为当前声道号
+    ylim([-0.2,0.2]);
+end
+approx_event_times = zeros(1, num_events);
+approx_event_times(1,1) = 23.2798;
+% 每个事件的粗略时间节点（单位：秒）
+for i = 2:num_events
+    approx_event_times(i) = approx_event_times(1,1) + 2 * (i - 1);
+end
+% approx_event_times = [11, 4, 8, 11, 14, 17, 21, 24, 27, 31]; % 示例时间点
+
+% 搜索窗口设置（秒）
+search_window = 0.002; 
+
+start_sample_list = zeros(num_events, num_channels); % 存储峰值索引
+
+for event_num = 1:num_events
+    approx_sample_idx = round(approx_event_times(event_num) * fs); % 将时间转换为样本索引
+    
+    for ch = 1:num_channels
+        % 获取当前通道数据
+        channel_data = all_data(:, ch);
+        
+        % 计算搜索区间
+        start_idx = max(1, approx_sample_idx - fs * search_window);
+        end_idx = min(length(channel_data), approx_sample_idx + fs * search_window);
+        
+        % 在搜索区间中找到峰值
+        [~, peak_idx] = max(abs(channel_data(start_idx:end_idx)));
+        peak_global_idx = start_idx + peak_idx - 1; % 转换为全局索引
+        
+        % 存储每个通道的峰值索引
+        start_sample_list(event_num, ch) = peak_global_idx;
+    end
+end
+
+delay_mean = zeros(num_events, num_channels-1); % 存储TDOA结果
+ref_channel = 1; % 设定第一个通道为参考通道 第一个通道是0号麦克风
+
+for event_num = 1:num_events
+    ref_idx = start_sample_list(event_num, ref_channel); % 取参考通道峰值索引
+
+    for ch = 2:num_channels
+        ch_idx = start_sample_list(event_num, ch); % 取当前通道峰值索引
+        % 计算TDOA，假设您有gccphat或相似函数
+        tau = gccphat(all_data(max(1,ref_idx-5000):min(length(channel_data),ref_idx+10000), ch), ...
+            all_data(max(1,ref_idx-5000):min(length(channel_data),ref_idx+10000), ref_channel), fs);
+%         tau = gccphat(all_data(max(1,ref_idx-5000):min(length(channel_data),ref_idx+5000), ref_channel), ...
+%             all_data(max(1,ref_idx-5000):min(length(channel_data),ref_idx+5000), ch), fs);
+        delay_mean(event_num, ch-1) = tau;
+    end
+end
+
+
+
+% 初始化一个矩阵来存储每个通道在连续事件间的时间差异
+channel_differences = zeros(num_events-1, num_channels-1);
+
+% 计算每个通道在连续事件间的时间差异
+for ch = 1:num_channels
+    for event_num = 1:num_events-1
+        channel_differences(event_num, ch) = (start_sample_list(event_num+1, ch) - start_sample_list(event_num, ch))/fs;
+    end
+end
+% disp(start_sample_list./fs);
+% 输出或处理channel_differences以进行分析或可视化
+channel_differences = channel_differences(:,1:8);
+channel_differences = channel_differences -2;
+disp(channel_differences);
+
+
+
+% 选择 delay_mean 数组的前 7 列
+delay_mean = delay_mean(1:num_events, 1:7);
+% temp = delay_mean(:,5);
+% delay_mean(:,5) = delay_mean(:,6);
+% delay_mean(:,6) = temp;
+
+% delay_mean(3,:) = [0.0011, -3.33*10^-4,-4.17*10^-4,3.33*10^-4,2.5*10^-4,-7.083*10^-4,-1.667*10^-4];
+% delay_mean(4,4) = [3.33*10^-4];
+% delay_mean(9,:) = [];
+% delay_mean1 = load('TDOA_results1.mat');
+% delay_mean2 = delay_mean1.delay_mean(1:5,:);
+% delay_mean = [delay_mean;delay_mean2];
+
+% delay_mean = [delay_mean;delay_mean;delay_mean];
+% % delay_mean(3,5) = 5 * 10^-4; 
+% % delay_mean(4,4) = 5 * 10^-4; 
+% delay_mean(9,5) = 1 * 10^-5; 
+
+% 保存选定的部分
+% save('TDOA_results_partial.mat', 'delay_mean_partial');
+
+save('TDOA_results4.mat', 'delay_mean');
+
